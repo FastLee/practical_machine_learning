@@ -1,0 +1,83 @@
+---
+title: "Analyzing Fitness Data"
+author: "Liran Bareket"
+date: "Friday, April 24, 2015"
+output: html_document
+---
+## Coursera - Practical Machine Learning 
+### Course Submission.
+
+These are the steps we used to analyze the data.  
+We read the data into a data frame.  
+We set the classes for the numeric columns we would like to analyze.  
+These are the raw data elements (no aggregates).  
+We then removed all the columns we are not going to use from the data frame.  
+
+```{r reading_files}
+library(caret)
+library(knitr)
+# We are setting the columns we want to use to numeric.
+colClasses<-c(rep("character",7),
+                                 rep("numeric",4),
+                                 rep("character",25),
+                                 rep("numeric",13),
+                                 rep("character",10),
+                                 rep("numeric",9),
+                                 rep("character",15),
+                                 rep("numeric",3),
+                                 rep("character",15),
+                                 rep("numeric",1),
+                                 rep("character",10),
+                                 rep("numeric",12),
+                                 rep("character",15),
+                                 rep("numeric",1),
+                                 rep("character",10),
+                                 rep("numeric",9),
+                                 "factor")
+dataset<-read.csv("../pml-training.csv",colClasses=colClasses,na.strings=c("\"\""))
+dataset_slim<-dataset[,lapply(dataset,class)=="numeric"]
+dataset_slim$classe<-dataset$classe
+
+```
+Next we find the redundant or highly correlated variable and take them out of the data.  
+We use the cor function to find the data correlations and then filter out all the ones that show correlation of more than .75 to other features.
+```{r}
+
+correlationMatrix <- cor(dataset_slim[,1:51])
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
+names(dataset_slim)[highlyCorrelated]
+
+```
+
+
+Then we remove the redundant features from the set and split it to training and testing set.
+```{r}
+dataset_slim<-dataset_slim[,-highlyCorrelated]
+
+##splitting to training and testing data
+trainIndex <- createDataPartition(dataset_slim$classe, p=.8, list=F)
+training<-dataset_slim[trainIndex,]
+testing<-dataset_slim[-trainIndex,]
+
+head(dataset_slim)
+```
+
+We will use the random tree method to train the model. We use the random forest because it has a built in resampling mechanism.
+
+```{r training}
+##fit the model
+library(randomForest)
+modFit<-randomForest(classe~. ,data=training, method="rf")
+modFit
+```
+
+As is apparent the OOB estimate is 0.6% which is extremely good.
+We will use this model and now validate it against the testing set we prepared.
+
+```{r confusion}
+##fit the model
+confusionMatrix(testing$classe,predict(modFit,testing))
+```
+
+We can see that the model predicted the classes with a very high accuracy.
+We will use this model to predict the testing.
